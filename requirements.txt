@@ -1,0 +1,7 @@
+click
+flask
+flask-shell-ipython
+mock
+pytest
+pyzmq
+tox
