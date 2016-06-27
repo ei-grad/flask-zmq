@@ -25,8 +25,7 @@ class ZMQHandler(object):
     def __call__(self, *args, **kwargs):
         if self.socket is None:
             self.connect()
-        self.socket.send_pyobj(args, zmq.SNDMORE)
-        self.socket.send_pyobj(kwargs)
+        self.send(*args, **kwargs)
 
     def connect(self, address=None):
 
@@ -57,19 +56,31 @@ class ZMQHandler(object):
         if self.server_socket is None:
             self.bind(bind_address)
 
-        try:
-            while True:
-                args = self.server_socket.recv_pyobj()
-                kwargs = self.server_socket.recv_pyobj()
-                try:
-                    self.handler(*args, **kwargs)
-                except KeyboardInterrupt:
-                    break
-                except Exception as e:
-                    logging.error("%s(*%s, **%s) failed with %s",
-                                  self.__name__, args, kwargs, e,
-                                  exc_info=True)
-        except KeyboardInterrupt:
-            pass
+        while True:
+            try:
+                self.handle()
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                logging.error("%s failed with %s", self.__name__, e,
+                              exc_info=True)
 
         logging.info("Stopping")
+
+    def send(self, *args, **kwargs):
+        self.socket.send_pyobj(args, zmq.SNDMORE)
+        self.socket.send_pyobj(kwargs)
+
+    def handle(self):
+        args = self.server_socket.recv_pyobj()
+        kwargs = self.server_socket.recv_pyobj()
+        self.handler(*args, **kwargs)
+
+
+class CrosslangZMQHandler(ZMQHandler):
+    def send(self, *args):
+        self.socket.send_multipart(args)
+
+    def handle(self):
+        args = self.server_socket.recv_multipart()
+        self.handler(*args)
